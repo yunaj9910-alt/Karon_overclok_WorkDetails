@@ -1,0 +1,178 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Containers/Ticker.h"    
+#include "AbilitySystem/Ability/KOGameplayAbilityBase.h"
+#include "KOGA_Utility_LockOn.generated.h"
+
+
+
+
+
+UCLASS()
+class KARON_API UKOGA_Utility_LockOn : public UKOGameplayAbilityBase
+{
+	GENERATED_BODY()
+	
+public:
+	UKOGA_Utility_LockOn();
+
+	// ── GAS 오버라이드 ──────────────────────────────────────────────
+	virtual void ActivateAbility(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo,
+		const FGameplayEventData* TriggerEventData) override;
+
+	// 어빌리티 종료 시 호출 (타이머 정리 등 클린업)
+	virtual void EndAbility(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo,
+		bool bReplicateEndAbility,
+		bool bWasCancelled) override;
+	
+	// ASC가 InputPressed 신호를 보낼 때 호출됨 (어빌리티가 Active 상태일 때)
+	// 어빌리티 Active 상태에서 버튼 재누름 시 호출 (락온 해제)
+	virtual void InputPressed(
+		const FGameplayAbilitySpecHandle Handle,
+		const FGameplayAbilityActorInfo* ActorInfo,
+		const FGameplayAbilityActivationInfo ActivationInfo) override;
+	
+private:
+	// ── 락온 핵심 로직 ──────────────────────────────────────────────
+	void ActivateLockOn();
+	void DeactivateLockOn();
+ 
+	// ── 타겟 탐색 & 유효성 ──────────────────────────────────────────
+	AActor* FindBestTarget() const;
+	bool IsTargetValid() const;
+	FVector GetTargetSocketLocation() const;
+	
+	// ── 카메라 회전 ─────────────────────────────────────────────────
+	UFUNCTION()
+	void UpdateCameraRotation();
+	
+	bool CameraTick(float DeltaTime);
+	
+	void StartCameraUpdate();   // 카메라 타이머 시작
+	void StopCameraUpdate();    // 카메라 타이머 정지
+ 
+	// ── 거리 체크 ───────────────────────────────────────────────────
+	UFUNCTION()
+	void CheckLockOnDistance();
+ 
+	void StartLockOnDistanceCheck();  // 거리 체크 타이머 시작
+	void StopLockOnDistanceCheck();   // 거리 체크 타이머 정지
+ 
+	// ── GAS 태그 ────────────────────────────────────────────────────
+	void ApplyLockOnGameplayTag(bool bApply); 
+ 
+	// ── 에디터 설정 ─────────────────────────────────────────────────
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float SearchRadius = 3000.f;
+ 
+	// 카메라가 타겟 쪽으로 회전하는 보간 속도
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float CameraInterpSpeed = 8.f;
+ 
+	// 이 거리 이상 멀어지면 락온 자동 해제 (SearchRadius보다 커야 함)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float LockOnBreakDistance = 1800.f;
+ 
+	
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	FName TargetSocketName = FName("LockOnSocket");
+ 
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float LockOnCameraPitch = -35.f;
+ 
+	// 보스 타겟 락온 시 사용할 별도 카메라 Pitch (보스는 덩치가 크므로 더 위에서 봄)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float BossLockOnCameraPitch = 5.f;
+	
+	
+	// ── 소프트 락온(리시) 설정 ──────────────────────────────────
+	// 타겟 정면(앵커) 기준, 마우스로 벗어날 수 있는 좌우 최대 각도
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn|Soft")
+	float LeashYaw = 40.f;
+
+	// 앵커 기준 상하 최대 각도
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn|Soft")
+	float LeashPitch = 20.f;
+
+	// 마우스에서 손 뗀 뒤 앵커로 복귀하는 보간 속도 (CameraInterpSpeed보다 느리게)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn|Soft")
+	float RecenterInterpSpeed = 4.5f;
+
+	// 이 시간(초) 이상 마우스 입력이 없으면 "복귀 모드"로 전환
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn|Soft")
+	float ReactivateDelay = 1.0f;
+	
+	
+	// 보스 락온 시 카메라를 추가로 뒤로 빼는 거리 (cm)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float BossLockOnExtraArmLength = 350.f;
+	
+	// 이 거리보다 타겟이 가까워지면 카메라를 뒤로 빼기 시작 (cm)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float CloseDistanceThreshold = 400.f;
+
+	// 가장 가까울 때 추가로 빼는 최대 거리 (cm)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float MaxCloseExtraArmLength = 250.f;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	FVector LockOnCameraOffset = FVector(200.f, 0.f, 0.f); // Y=오른쪽, Z=위
+
+	
+	// 카메라 컴포넌트 오프셋 보간 속도
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float CameraOffsetInterpSpeed = 2.5f;
+
+	// 락온 해제 시 복구용: 진입 전 Camera 컴포넌트의 상대 위치
+	//FVector DefaultCameraRelLocation = FVector::ZeroVector;
+	
+	// 하드코딩 방지를 위한 액터 태그 변수 노출
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	FName EnemyActorTag = FName("Enemy");
+
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	FName BossActorTag = FName("Boss");
+	
+	// 디버그 메시지 출력 여부 제어
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	bool bShowDebugMessages = true;
+ 
+	// ── 런타임 상태 ─────────────────────────────────────────────────
+	// 메모리 누수 및 크래시 방지를 위해 약참조(TWeakObjectPtr) 사용
+	UPROPERTY()
+	TWeakObjectPtr<AActor> LockedTarget = nullptr;
+ 
+	// 락온 해제 시 복구용: 진입 전 Camera 컴포넌트의 상대 위치
+	FVector DefaultCameraRelLocation = FVector::ZeroVector;
+
+	// 타겟과 수평 거리가 이 값보다 가까우면 atan2 특이점으로 Yaw가 튈 수 있어
+	// 새로 계산하지 않고 LastValidAnchorYaw를 유지한다 (뒤로 180도 도는 현상 방지)
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float MinYawUpdateHorizontalDistance = 50.f;
+	
+	UPROPERTY(EditDefaultsOnly, Category = "LockOn")
+	float MaxAnchorYawJumpPerFrame = 150.f;
+	
+	bool bIsLockedOn = false;
+	//float LockOnActivationTime = 0.f;
+	// 활성화된 바로 그 프레임에 InputPressed가 중복 호출되는 경우만 무시하기 위한 기록
+	uint64 LockOnActivationFrame = 0;
+
+	// 해제 버튼을 뗄 때까지, ASC의 Held 재활성화 로직이 방금 해제한 락온을
+	// 즉시 재활성화하지 못하도록 막는 플래그
+	bool bWaitingForButtonRelease = false;
+
+	// FindLookAtRotation으로 계산된 마지막 안정 Yaw (근접 특이점 구간에서 재사용)
+	float LastValidAnchorYaw = 0.f;
+	bool bHasValidAnchorYaw = false;
+	//FTimerHandle CameraUpdateTimerHandle;
+	FTSTicker::FDelegateHandle CameraTickHandle; 
+	FTimerHandle LockOnDistanceTimerHandle;
+};
